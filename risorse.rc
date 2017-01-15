@@ -1,0 +1,99 @@
+// Risorse varie per l'applicazione Windows® Uosk
+
+#include "macro.h"
+#include <windows.h>
+
+ID_ICONA ICON "bottons.ico"
+
+// Menu principale
+ID_MENUPRINCIPALE MENU
+BEGIN
+    POPUP "&File"
+    BEGIN
+		MENUITEM "&New", MENU_FILE_NUOVO
+		MENUITEM "&Open...", MENU_FILE_APRI
+		MENUITEM "&Edit", MENU_FILE_EDITA, GRAYED
+		MENUITEM "&Save", MENU_FILE_SALVA, GRAYED
+		MENUITEM "Save As...", MENU_FILE_SALVACOME, GRAYED
+		MENUITEM "&Close", MENU_FILE_CHIUDI, GRAYED
+		MENUITEM "E&xit", MENU_EXIT
+    END
+    POPUP "&Options"
+    BEGIN
+        MENUITEM "&Copy to clipboard", MENU_COPIA_APPUNTI
+		MENUITEM "&Status bar", MENU_MOSTRA_STATUS
+		MENUITEM "Buttons Font...", MENU_FONT_BOTTONI
+		MENUITEM "Editor Font...", MENU_FONT_EDITORE
+		MENUITEM "&Preferences...", MENU_PREFERENZE
+    END
+	POPUP "&?"
+	BEGIN
+		MENUITEM "&About...", MENU_INFORMAZIONI
+		MENUITEM "&Report a Problem...", MENU_PROBLEMA
+	END
+	MENUITEM "[ ]", ID_BOTTONE_AUTOSIZE, HELP
+END
+
+// Finestra dialogo Preferenze (per ora solo il carattere che divide gli scampoli)
+DIALOGO_PREFERENZE DIALOG 0, 0, 200, 130
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Preferences"
+FONT 9, "MS Sans Serif"
+BEGIN
+    GROUPBOX 	"Buttons separators",ID_STATICO,10,10,180,90
+    LTEXT   	"Characters that break text into snippets:",ID_STATICO,25,25,150,20
+	CHECKBOX  	"Space",CHECKBOX_SPAZI,30,40,70,15,BS_AUTOCHECKBOX
+	CHECKBOX  	"Tabulation",CHECKBOX_TAB,30,55,70,15,BS_AUTOCHECKBOX
+	RTEXT   	"Other",ID_STATICO,20,73,40,15
+	EDITTEXT    EDITTEXT_ALTRI,65,72,40,12
+	LTEXT   	"(ASCII only)",ID_STATICO,110,73,70,15
+    PUSHBUTTON	"&Cancel",IDCANCEL,105,105,50,15
+    PUSHBUTTON	"&OK",IDOK,45,105,50,15
+END
+
+// Finestra dialogo Riconoscimeni
+DIALOGO_RICONOSCIMENTI DIALOG 0, 0, 200, 150
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "About"
+FONT 9, "MS Sans Serif"
+BEGIN
+    GROUPBOX        "Info about Uosk",ID_STATICO,10,10,180,110
+    CTEXT           "Unicode On-Screen Keyboard\nInsert text snippets into any Windows program\n\n"
+					"Version 0.2.0\nJanuary 2017\n\nMichele Salvador",
+                    ID_STATICO,20,30,160,60
+	PUSHBUTTON 		"Uosk web page",ID_LINK,65,95,70,14
+	DEFPUSHBUTTON   "&Close",IDCANCEL,75,127,50,15
+END
+
+// Info versione
+VS_VERSION_INFO    VERSIONINFO
+FILEVERSION        0,2,0,0
+PRODUCTVERSION     0,2,0,0
+FILEFLAGSMASK      VS_FFI_FILEFLAGSMASK
+#ifdef RELEASE
+  FILEFLAGS        0
+#else
+  FILEFLAGS        VS_FF_DEBUG | VS_FF_PRERELEASE
+#endif
+FILEOS             VOS_NT_WINDOWS32
+FILETYPE           VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0"
+    BEGIN
+		VALUE "CompanyName", "Michele Salvador"
+		VALUE "FileDescription", "Unicode On-Screen Keyboard"
+		VALUE "FileVersion", "0.2.0"
+		VALUE "InternalName", "Uosk"
+		VALUE "LegalCopyright", "Michele Salvador"
+		VALUE "OriginalFilename", "uosk.exe"
+		VALUE "ProductName", "Uosk"
+		VALUE "ProductVersion", "0.2.0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409,1200
+  END
+END
