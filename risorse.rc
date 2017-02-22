@@ -1,0 +1,126 @@
+// Risorse varie per l'applicazione Windows® Uosk
+
+#include "macro.h"
+#include <windows.h>
+
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "uosk.manifest"
+
+ID_ICONA ICON "bottons.ico"
+ID_IMMAGINE BITMAP ".\\..\\..\\immagini\\istruzione.bmp"
+
+// Menu principale
+ID_MENUPRINCIPALE MENU
+BEGIN
+    POPUP "&File"
+    BEGIN
+		MENUITEM "&New\tCtrl+N", MENU_FILE_NUOVO
+		MENUITEM "&Open...\tCtrl+O", MENU_FILE_APRI
+		POPUP "Recent Files"
+		BEGIN
+			MENUITEM "", ID_STATICO
+		END
+		MENUITEM SEPARATOR
+		MENUITEM "&Edit\tCtrl+E", MENU_FILE_EDITA, GRAYED
+		MENUITEM "&Save\tCtrl+S", MENU_FILE_SALVA, GRAYED
+		MENUITEM "Save As...", MENU_FILE_SALVACOME, GRAYED
+		MENUITEM "&Close\tCtrl+W", MENU_FILE_CHIUDI, GRAYED
+		MENUITEM "E&xit\tCtrl+Q", MENU_EXIT
+    END
+    POPUP "&Options"
+    BEGIN
+        MENUITEM "&Copy to clipboard", MENU_COPIA_APPUNTI
+		MENUITEM "&Title bar", MENU_MOSTRA_TITOLO, CHECKED
+		MENUITEM "&Status bar", MENU_MOSTRA_STATUS
+		MENUITEM "Keyboard Font...", MENU_FONT_TASTIERA
+		MENUITEM "Editor Font...", MENU_FONT_EDITORE
+		MENUITEM "&Preferences...", MENU_PREFERENZE
+    END
+	POPUP "&?"
+	BEGIN
+		MENUITEM "&About...", MENU_INFORMAZIONI
+		MENUITEM "&Report a Problem...", MENU_PROBLEMA
+	END
+	MENUITEM "[ ]", MENU_BOTTONE_DESTRA, HELP
+END
+
+// Acceleratori
+Acceleri ACCELERATORS 
+BEGIN
+	"N", MENU_FILE_NUOVO, CONTROL, VIRTKEY
+	"O", MENU_FILE_APRI, CONTROL, VIRTKEY
+	"E", MENU_FILE_EDITA, CONTROL, VIRTKEY
+	"S", MENU_FILE_SALVA, CONTROL, VIRTKEY
+	"W", MENU_FILE_CHIUDI, CONTROL, VIRTKEY
+	"Q", MENU_EXIT, CONTROL, VIRTKEY
+END
+
+messaggioIstruttivo DIALOGEX 0, 0, 220, 125
+STYLE DS_MODALFRAME | DS_CENTER | WS_CAPTION | WS_SYSMENU
+CAPTION "Choose a target program"
+BEGIN
+	//CONTROL 0,ID_STATICO,"Static", SS_WHITERECT ,0,0,220,115
+	LTEXT "Select a text editor (Notepad, WordPad, MS Word...) to input the snippet", ID_STATICO,15,10,190,30
+	//CONTROL ID_IMMAGINE,ID_SEGNAPOSTO,"Static",SS_CENTERIMAGE|SS_BITMAP, 0,20 ,220,80	//|WS_BORDER
+	DEFPUSHBUTTON "OK",IDCANCEL,160,105,50,13
+END
+
+// Finestra dialogo Preferenze
+DIALOGO_PREFERENZE DIALOGEX 0, 0, 200, 130
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Preferences"
+BEGIN
+    GROUPBOX 	"Buttons separators",ID_STATICO,10,10,180,90
+    LTEXT   	"Characters that break text into snippets:",ID_STATICO,25,25,150,20
+	CHECKBOX  	"Space",CHECKBOX_SPAZI,30,40,70,15,BS_AUTOCHECKBOX
+	CHECKBOX  	"Tabulation",CHECKBOX_TAB,30,55,70,15,BS_AUTOCHECKBOX
+	RTEXT   	"Other",ID_STATICO,20,73,40,15
+	EDITTEXT    EDITTEXT_ALTRI,65,72,40,12
+	LTEXT   	"(ASCII only)",ID_STATICO,110,73,70,15
+    PUSHBUTTON	"&Cancel",IDCANCEL,105,105,50,15
+    PUSHBUTTON	"&OK",IDOK,45,105,50,15
+END
+
+// Finestra dialogo Riconoscimeni
+DIALOGO_RICONOSCIMENTI DIALOGEX 0, 0, 200, 150
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "About"
+BEGIN
+    GROUPBOX        "Info about Uosk",ID_STATICO,10,10,180,110
+    CTEXT           "Unicode On-Screen Keyboard\nInsert text snippets into any Windows program\n\n"
+					"Version 0.3.0\nFebruary 2017\n\nMichele Salvador",ID_STATICO,15,30,170,60
+	CONTROL         "<a href=""https://sourceforge.net/projects/uosk/"">Uosk on SourceForge</a>",ID_LINK,"SysLink",0,70,95,90,15
+	DEFPUSHBUTTON   "&Close",IDCANCEL,75,127,50,15
+END
+
+// Info versione
+VS_VERSION_INFO    VERSIONINFO
+FILEVERSION        0,3,0,0
+PRODUCTVERSION     0,3,0,0
+FILEFLAGSMASK      VS_FFI_FILEFLAGSMASK
+#ifdef RELEASE
+  FILEFLAGS        0
+#else
+  FILEFLAGS        VS_FF_DEBUG | VS_FF_PRERELEASE
+#endif
+FILEOS             VOS_NT_WINDOWS32
+FILETYPE           VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0"
+    BEGIN
+		VALUE "CompanyName", "Michele Salvador"
+		VALUE "FileDescription", "Unicode On-Screen Keyboard"
+		VALUE "FileVersion", "0.3.0"
+		VALUE "InternalName", "uosk"
+		VALUE "LegalCopyright", "Michele Salvador"
+		VALUE "OriginalFilename", "uosk.exe"
+		VALUE "ProductName", "Uosk"
+		VALUE "ProductVersion", "0.3.0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409,1200
+  END
+END
