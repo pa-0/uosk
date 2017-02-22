@@ -3,7 +3,7 @@
 #define WINVER 0x0501
 #define _WIN32_IE 0x0300
 
-#define RELEASE 0
+#define RELEASE 1
 
 #include <stdio.h>
 #include <windows.h>
