@@ -1,4 +1,5 @@
 // funzioni della finestra Editore
+#include "macro.h"
 
 // scrive nella status bar il numero dei caratteri dell'Editore
 void contaCaratteri() {
@@ -11,7 +12,8 @@ void contaCaratteri() {
 #define MN_GETHMENU 0x01E1
 void WinEventProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime) {
 	HMENU hMenu = (HMENU)SendMessage(hwnd, MN_GETHMENU, 0, 0);
-	InsertMenu( hMenu, 0, MF_BYPOSITION | MF_CHECKED, MENU_FILE_EDITA, "Edit");
+	InsertMenu (hMenu, 0, MF_BYPOSITION, WM_USER, "Snippet Info");
+	InsertMenu (hMenu, 1, MF_BYPOSITION|MF_CHECKED, WM_USER+1, "Edit");
 	return;
 }
 
@@ -33,10 +35,10 @@ LRESULT CALLBACK ProceduraEditore(HWND hEditor, UINT message, WPARAM wParam, LPA
 		case WM_PASTE:
 		case WM_CLEAR:
 			fileModificato = 1;
-			if( strcmp(nomeFile,"untitled") ) {
-				char nome[MAX_PATH]; 
-				sprintf( nome, "*%s", strrchr(nomeFile,'\\')+1 );
-				SetWindowText(GetParent(hEditor), nome);
+			if( wcscmp(nomeFile,L"untitled") ) {
+				wchar_t nome[MAX_PATH];
+				snwprintf( nome, conta(nome), L"*%s", wcsrchr(nomeFile,'\\')+1 );
+				SetWindowTextW( GetParent(hEditor), nome );
 			}
 			EnableMenuItem(GetMenu(GetParent(hEditor)), MENU_FILE_SALVA, MF_ENABLED);
 			DefSubclassProc(hEditor, message, wParam, lParam);
@@ -47,11 +49,19 @@ LRESULT CALLBACK ProceduraEditore(HWND hEditor, UINT message, WPARAM wParam, LPA
 			                                            WinEventProc, GetCurrentProcessId(), GetCurrentThreadId(), 0);
 			DefSubclassProc(hEditor, WM_CONTEXTMENU, wParam, lParam);
 			UnhookWinEvent(hEventHook);
+			if( GetWindowLong(hEditor,GWL_EXSTYLE) & WS_EX_RTLREADING )
+				das = MF_UNCHECKED;
+			else das = MF_CHECKED;
+			SendMessage (hWindow, WM_COMMAND, MENU_LETTURA_DAS, 0);
 			break;
 		}
-		case MENU_FILE_EDITA:
-			SendMessage(GetParent(hEditor), WM_COMMAND, MENU_FILE_EDITA, 0);
+		case WM_USER:
+			SendMessage (hWindow, WM_COMMAND, MENU_INFO_SNIPPET, 0);
 			break;
+		case WM_USER+1:
+			SendMessage (hWindow, WM_COMMAND, MENU_FILE_EDITA, 0);
+			break;
+
 		default:
 			return DefSubclassProc(hEditor, message, wParam, lParam);	// editore subclassato con SetWindowSubclass()
 	}

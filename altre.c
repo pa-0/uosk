@@ -1,20 +1,9 @@
 // Uosk - Funzioni del programma
-
-void bottoneDestra();
-void caricaFont(char*);
-void copiaNegliAppunti(wchar_t*);
-wchar_t* elencaSeparatori();
-wchar_t* escapaAnd(wchar_t*);
-int lunghezzaBOM(char*);
-_Bool preservaModifiche();
-void scriviNomeFile();
-void settaFontSistema(HWND);
-void svuotaTastiera();
-#define conta(array) sizeof array / sizeof(array[0])
+#include "macro.h"
 
 // legge un file, scopre se è codificato ascii, ansi, utf8 o unicode, e ne restituisce il contenuto
-wchar_t* decodificaFile(char *nome) {
-	HANDLE file = CreateFile( nome, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+wchar_t* decodificaFile(wchar_t *nome) {
+	HANDLE file = CreateFileW( nome, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
 	DWORD pesoFile = GetFileSize(file, NULL);	// numero dei byte incluso il BOM
 	char test[pesoFile+1];
 	DWORD caratteriLetti;
@@ -50,11 +39,11 @@ void creaBottoni() {
 	wchar_t testo[num+1];
 	GetWindowTextW(hEditore, testo, num+1);
 	SIZE dimensioniSnippet;
-	unsigned int
-		x = 0,
+	int	x = 0,
 		largo,
 		alto = 30,
 		numSnippet = 0;
+	if(das) x = size.clienteLargo;
 	HDC hDc = GetDC(hWindow);
 	caricaFont("keyboard");
 	HFONT hFontBottoni = CreateFontIndirect(&lf);
@@ -81,14 +70,29 @@ void creaBottoni() {
 	}
 	righe[r][c] = 0;
 	// creazione bottoni
+	wchar_t *snippet;
 	unsigned int numRighe = 0;
+	unsigned int numCarat = 0;
 	while ( numRighe <= r ) {
-		wchar_t *snippet = wcstok( righe[numRighe], elencaSeparatori() );
+		if (okMosaico) {
+			snippet = tesseraMosaico(&righe[numRighe][numCarat]);
+			numCarat++;
+		} else
+			snippet = wcstok( righe[numRighe], elencaSeparatori() );
 		while (snippet) {
 			GetTextExtentPoint32W(hDc, snippet, wcslen(snippet), &dimensioniSnippet);
-			largo = dimensioniSnippet.cx + 12;	
+			largo = max(dimensioniSnippet.cx,10) + 12;
 			alto = dimensioniSnippet.cy + 10;
-			if( x+largo>size.clienteLargo && x>0 ) {
+			// tasto andrebbe fuori dalla pagina
+			if (das) {
+				x -= largo;
+				if (x < 0) {
+					if( size.clienteLargo-x > size.pulsaLarga )
+						size.pulsaLarga = size.clienteLargo-x-largo;
+					x = size.clienteLargo-largo;
+					si.nMax += alto;
+				}
+			} else if( x+largo>size.clienteLargo && x>0 )  {
 				if( x > size.pulsaLarga )
 					size.pulsaLarga = x;
 				x = 0;
@@ -97,15 +101,29 @@ void creaBottoni() {
 			HWND hBotton = CreateWindowW( L"Button", escapaAnd(snippet), WS_CHILD | WS_VISIBLE, x, si.nMax,
 			               largo, alto, hTastiera, (HMENU)ID_BOTTONE_SNIPPET, GetModuleHandle(NULL), NULL);
 			SendMessage(hBotton, WM_SETFONT, (WPARAM)hFontBottoni, 0);
-			x += largo;
+			if(!das) x += largo;
 			numSnippet++;
-			snippet = wcstok (NULL, elencaSeparatori() );
+			if (okMosaico) {
+				if (righe[numRighe][numCarat]>=0xDC00 && righe[numRighe][numCarat]<=0xDFFF)	// il secondo surrogato lo salta
+					numCarat++;
+				snippet = tesseraMosaico(&righe[numRighe][numCarat]);
+				numCarat++;
+			} else
+				snippet = wcstok (NULL, elencaSeparatori() );
 		}
 		numRighe++;
-		if( x > size.pulsaLarga )
-			size.pulsaLarga = x;
-		si.nMax += !x ? alto/2 : alto;
-		x = 0;
+		numCarat = 0;
+		if(das) {
+			if( size.clienteLargo-x > size.pulsaLarga )
+				size.pulsaLarga = size.clienteLargo-x;
+			si.nMax += (x==size.clienteLargo) ? alto/2 : alto;
+			x = size.clienteLargo;
+		} else {
+			if( x > size.pulsaLarga )
+				size.pulsaLarga = x;
+			si.nMax += !x ? alto/2 : alto;
+			x = 0;
+		}
 	}
 	ReleaseDC(hWindow, hDc);
 	free(righe);
@@ -115,6 +133,20 @@ void creaBottoni() {
 	char snippets[6];
 	sprintf( snippets, "\t%d", numSnippet);
 	SendMessage(hStatusBar, SB_SETTEXT, 0, (LPARAM)&snippets);
+}
+
+// riceve il puntatore a una stringa e restituisce il primo carattere widechar
+wchar_t *tesseraMosaico(wchar_t *stringa) {
+	if (stringa[0]=='\0')	// riga finita
+		return 0;
+	static wchar_t glifo[3];
+	glifo[0] = stringa[0];
+	if (stringa[0]>=0xD800 && stringa[0]<=0xDBFF) {
+		glifo[1] = stringa[1];
+		glifo[2] = 0;
+	} else 
+		glifo[1] = 0;
+	return glifo;
 }
 
 void disponiBottoni() {
@@ -127,7 +159,9 @@ void disponiBottoni() {
 		if(si.nMax >= si.nPage)
 			size.clienteLargo -= GetSystemMetrics(SM_CXVSCROLL);
 		creaBottoni();
+		si.fMask = SIF_POS;
 		GetScrollInfo( hTastiera, SB_VERT, &si );
+		si.fMask = SIF_ALL;
 		ScrollWindow( hTastiera, 0, -si.nPos, NULL, NULL );
 		ShowWindow(hTastiera, SW_SHOW);
 	}
@@ -136,71 +170,60 @@ void disponiBottoni() {
 // aggiorna lista file recenti nel menu e in config.ini
 void aggiornaFileRecenti() {
 	int i;
-	char nomePath[8];
-	char fileRecente[MAX_PATH];
+	wchar_t nomePath[8];
+	wchar_t fileRecente[MAX_PATH];
 	HMENU hSubMenu = GetSubMenu( GetSubMenu(GetMenu(hWindow),0), 2 );
 	int posizioneFileAttuale = 5;
 	for(i=0; i<5; i++) {
-		sprintf(nomePath,"recent%d", i );
-		GetPrivateProfileString( "file", nomePath, "", fileRecente, MAX_PATH, config_ini);
-		if(strcmp(fileRecente, nomeFile)==0)
+		snwprintf( nomePath, conta(nomePath), L"recent%d", i );
+		GetPrivateProfileStringW( L"file", nomePath, L"", fileRecente, MAX_PATH, Lconfig_ini);
+		if( wcscmp(fileRecente, nomeFile)==0 )
 			posizioneFileAttuale = i;
 		RemoveMenu( hSubMenu, 0, MF_BYPOSITION );
 	}
 	for(i=3; i>=0; i--) {
 		if ( i < posizioneFileAttuale ) {
-			sprintf(nomePath,"recent%d", i );
-			GetPrivateProfileString( "file", nomePath, "", fileRecente, MAX_PATH, config_ini);
-			sprintf(nomePath,"recent%d", i+1 );
-			WritePrivateProfileString( "file", nomePath, fileRecente, config_ini);
+			snwprintf( nomePath, conta(nomePath), L"recent%d", i );
+			GetPrivateProfileStringW( L"file", nomePath, L"", fileRecente, MAX_PATH, Lconfig_ini);
+			snwprintf( nomePath, conta(nomePath), L"recent%d", i+1 );
+			WritePrivateProfileStringW( L"file", nomePath, fileRecente, Lconfig_ini);
 		}
 	}
-	WritePrivateProfileString( "file", "recent0", nomeFile, config_ini);
+	WritePrivateProfileStringW( L"file", L"recent0", nomeFile, Lconfig_ini);
 	for(i=0; i<5; i++) {
-		sprintf(nomePath,"recent%d", i );
-		GetPrivateProfileString( "file", nomePath, "", fileRecente, MAX_PATH, config_ini);
+		snwprintf( nomePath, conta(nomePath), L"recent%d", i );
+		GetPrivateProfileStringW( L"file", nomePath, L"", fileRecente, MAX_PATH, Lconfig_ini );
 		if( fileRecente[0] )
-			InsertMenu( hSubMenu, -1, MF_BYPOSITION|MF_STRING, MENU_FILE_RECENTI+i, fileRecente);
+			InsertMenuW( hSubMenu, -1, MF_BYPOSITION|MF_STRING, MENU_FILE_RECENTI+i, fileRecente);
 	}
 }
 
 void apriFile() {
-	// converte il nome del file da char a wchar_t
-	wchar_t nomeFileW[MAX_PATH];
-	if ( fileDaAprire[0] ) {
-		MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, fileDaAprire, -1, nomeFileW, MAX_PATH);
-	} else if ( nomeFile[0] ) {
-		MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, nomeFile, -1, nomeFileW, MAX_PATH);
-	}
-
 	// se il file non esiste o non ha permesso di lettura messaggio di errore
 	wchar_t messaggio[MAX_PATH+50];
-	if ( !fileDaAprire[0] && !nomeFile[0] )
-		return;
-	if ( fileDaAprire[0] ) {
-		if ( access(fileDaAprire, F_OK) == -1 ) {  // il file non esiste
+	_Bool continua = 0;
+	if( fileDaAprire[0] ) {
+		if ( _waccess(fileDaAprire, F_OK) == -1 ) {
 			if (apriDaConfig_ini) {
-				snwprintf(messaggio,conta(messaggio),L"Can't find the file opened last time %s",nomeFileW);
+				snwprintf(messaggio,conta(messaggio),L"Can't find the file opened last time %s",fileDaAprire);
 				MessageBoxW(hWindow, messaggio, L"File not found", MB_ICONWARNING);
-				apriDaConfig_ini = 0;
 				nomeFile[0] = 0;
-			} else {	// non riesce ad aprirlo (caratteri Unicode)
-				snwprintf(messaggio,conta(messaggio),L"Can't open the file %s",nomeFileW);
+			} else {
+				snwprintf(messaggio,conta(messaggio),L"Can't find the file %s",fileDaAprire);
 				MessageBoxW(hWindow, messaggio, L"Impossible to open", MB_ICONWARNING);
 			}
-			fileDaAprire[0] = 0;
-			return;
-		} else if (access( fileDaAprire, R_OK ) == -1 ) {	// il file non ha permesso di lettura
-			snwprintf(messaggio,conta(messaggio),L"I can't read the file %s",nomeFileW);
+		} else if ( _waccess( fileDaAprire, R_OK ) == -1 ) {	// il file non ha permesso di lettura
+			snwprintf(messaggio,conta(messaggio),L"I can't read the file %s",fileDaAprire);
 			MessageBoxW(hWindow, messaggio, L"Failed to open", MB_ICONWARNING);
-			fileDaAprire[0] = 0;
-			return;
 		} else {
-			strcpy(nomeFile, fileDaAprire);
+			wcscpy(nomeFile, fileDaAprire);
+			continua = 1;
 		}
 	}
+	apriDaConfig_ini = 0;
 	fileDaAprire[0] = 0;
-
+	if(!continua) return;
+	
 	SetWindowTextW( hEditore, decodificaFile(nomeFile) );
 	if(okEdita) {
 		contaCaratteri();
@@ -217,8 +240,8 @@ void apriFile() {
 	}
 	
 	// modifica titolo finestra e nome file in statusbar
-	char* nome = strrchr(nomeFile, '\\') + 1; 
-	SetWindowText(hWindow, nome);
+	wchar_t* nome = wcsrchr(nomeFile, '\\') + 1; 
+	SetWindowTextW(hWindow, nome);
 	scriviNomeFile();
 
 	// abilita bottoni menu
@@ -231,8 +254,8 @@ void apriFile() {
 
 
 // scopre se il file ha il BOM e restituisce il numero di caratteri da eliminare all'inizio
-int lunghezzaBOM(char* nomeFile) {
-	FILE* file = fopen( nomeFile, "r" );	// apre il file come testo intiero, incluso il BOM
+int lunghezzaBOM(wchar_t *nomeFile) {
+	FILE* file = _wfopen( nomeFile, L"r" );
 	fseek(file, 0, SEEK_END);
 	wchar_t testo[ftell(file)+1];
 	fseek(file, 0, SEEK_SET);
@@ -281,15 +304,19 @@ wchar_t* escapaAnd(wchar_t* snip) {
 	return bis;
 }
 
-// riceve il puntatore a una stringa e la modifica dimezzando i doppi '&&'
-wchar_t* disescapaAnd(wchar_t* snip) {
+// Riceve il puntatore a una stringa e la modifica dimezzando i doppi '&&'
+// Restituisce il numero di code points (singoli glifi)
+int disescapaAnd( wchar_t *snip ) {
+	int glifi = -1;
 	for(int i=0,ip=0;i<=wcslen(snip);i++) {
 		snip[i] = snip[ip];
 		if (snip[i]=='&')
 			ip++;
 		ip++;
+		if (snip[i]<0xDC00 || snip[i]>0xDFFF)
+			glifi++;
 	}
-	return snip;
+	return glifi;
 }
 
 // accorcia l'indirizzo lungo e lo scrive nella status bar
@@ -298,21 +325,21 @@ void scriviNomeFile() {
 	HFONT defaultFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
 	SelectObject(hDc, defaultFont);
 	SIZE dimensioniPath;
-	GetTextExtentPoint32( hDc, nomeFile, strlen(nomeFile), &dimensioniPath );
+	GetTextExtentPoint32W( hDc, nomeFile, wcslen(nomeFile), &dimensioniPath );
 	int larghezzaPath = dimensioniPath.cx * 1.13;
 	ReleaseDC(hStatusBar, hDc);
 	if( larghezzaPath > size.statusSecondoLargo) {
-		float mezziCaratteri = (float)strlen(nomeFile) / larghezzaPath * size.statusSecondoLargo / 2 -1;
+		float mezziCaratteri = (float)wcslen(nomeFile) / larghezzaPath * size.statusSecondoLargo / 2 -1;
 		if (mezziCaratteri < 0) mezziCaratteri = 0;
-		char testa[MAX_PATH/2];
-		strncpy(testa, nomeFile, mezziCaratteri);
+		wchar_t testa[MAX_PATH/2];
+		wcsncpy(testa, nomeFile, mezziCaratteri);
 		testa[(int)mezziCaratteri] = 0;
-		char *coda = nomeFile + strlen(nomeFile)-(int)mezziCaratteri;
-		char nomeTroncato[MAX_PATH];
-		sprintf( nomeTroncato, "%s...%s", testa, coda );
-		SendMessage( hStatusBar, SB_SETTEXT, 1, (LPARAM)nomeTroncato );
+		wchar_t *coda = nomeFile + wcslen(nomeFile)-(int)mezziCaratteri;
+		wchar_t nomeTroncato[MAX_PATH];
+		snwprintf( nomeTroncato, conta(nomeTroncato), L"%s...%s", testa, coda );
+		SendMessage( hStatusBar, SB_SETTEXTW, 1, (LPARAM)nomeTroncato );
 	} else
-		SendMessage( hStatusBar, SB_SETTEXT, 1, (LPARAM)nomeFile );
+		SendMessage( hStatusBar, SB_SETTEXTW, 1, (LPARAM)nomeFile );
 }
 
 // ricava il nome del programma da ultimoProgrammaAttivo e lo scrive nella barra di stato
@@ -421,8 +448,11 @@ LRESULT CALLBACK proceduraTastiera(HWND hTastier, UINT Message, WPARAM wParam, L
 			break;
 		}
 		case WM_CONTEXTMENU: {
+			hSnippetFocus = (HWND)wParam;	// snippet su cui aprire la finestra Informazioni
 			HMENU hPopupMenu = CreatePopupMenu();
-			InsertMenu(hPopupMenu, 0, MF_BYPOSITION, MENU_FILE_EDITA, "Edit");
+			InsertMenu(hPopupMenu, 0, MF_BYPOSITION, MENU_INFO_SNIPPET, "Snippet Info");
+			InsertMenu(hPopupMenu, 1, MF_BYPOSITION, MENU_FILE_EDITA, "Edit");
+			InsertMenu(hPopupMenu, 2, MF_BYPOSITION | das, MENU_LETTURA_DAS, "Right to left Reading order");
 			POINT pt;
 			GetCursorPos(&pt);
 			TrackPopupMenu(hPopupMenu, TPM_TOPALIGN | TPM_LEFTALIGN, pt.x, pt.y, 0, hWindow, NULL);
@@ -436,11 +466,11 @@ LRESULT CALLBACK proceduraTastiera(HWND hTastier, UINT Message, WPARAM wParam, L
 					SetForegroundWindow(ultimoProgrammaAttivo);
 					
 					// recuperare il testo del bottone
-					HWND manicoBottone = (HWND)lParam;
-					int lunga = GetWindowTextLength(manicoBottone);
+					hSnippetFocus = (HWND)lParam;
+					int lunga = GetWindowTextLength(hSnippetFocus);
 					wchar_t capzione[lunga+1];
-					GetWindowTextW(manicoBottone, capzione, lunga+1);
-					disescapaAnd(capzione);
+					GetWindowTextW(hSnippetFocus, capzione, lunga+1);
+					int numGlifi = disescapaAnd(capzione);
 					lunga = wcslen(capzione);
 
 					if (okCopiaAppunti)
@@ -462,8 +492,8 @@ LRESULT CALLBACK proceduraTastiera(HWND hTastier, UINT Message, WPARAM wParam, L
 					int numCaratteriInviati = SendInput(lunga*2, input, sizeof(INPUT)) / 2;
 
 					// scrive nella barra di stato numero di caratteri
-					char quantiCaratteri[10];
-					snprintf( quantiCaratteri, sizeof(quantiCaratteri), "\t%d", numCaratteriInviati);
+					char quantiCaratteri[6];
+					snprintf( quantiCaratteri, conta(quantiCaratteri), "\t%d", numGlifi );
 					SendMessage( hStatusBar, SB_SETTEXT, 0, (LPARAM)&quantiCaratteri );
 					// e stringa inserita
 					wchar_t stringaInviata[numCaratteriInviati+1];
@@ -473,6 +503,8 @@ LRESULT CALLBACK proceduraTastiera(HWND hTastier, UINT Message, WPARAM wParam, L
 					SendMessage( hStatusBar, SB_SETTEXTW, 1, (LPARAM)&stringaInviata );
 					if (!ultimoProgrammaAttivo)
 						DialogBox( 0, "messaggioIstruttivo", hWindow, proceduraDialogoIstruzione );
+					if (hInfo)
+						SendMessage (hWindow, WM_COMMAND, MENU_INFO_SNIPPET, 0);
 				}
 			} break;
 		default:
@@ -481,19 +513,96 @@ LRESULT CALLBACK proceduraTastiera(HWND hTastier, UINT Message, WPARAM wParam, L
 	return 0;
 }
 
+// procedura finestra Informazioni sullo Snippet
+LRESULT CALLBACK proceduraInfoSnippet(HWND hInf, UINT message, WPARAM wParam, LPARAM lParam) {
+	switch (message) {
+		case WM_SIZE: {
+			si2.nPage = HIWORD(lParam);	// altezza finestra
+			break;
+		}
+		case WM_VSCROLL : {
+			int posVertIniz = si2.nPos;
+			switch (LOWORD (wParam)) {
+				case SB_LINEUP:
+					si2.nPos -= 10;
+					break;
+				case SB_LINEDOWN:
+					si2.nPos += 10;
+					break;
+				case SB_PAGEUP:
+					si2.nPos -= si2.nPage;
+					break;
+				case SB_PAGEDOWN:
+					si2.nPos += si2.nPage;
+					break;
+				case SB_THUMBPOSITION:
+					si2.nPos = HIWORD(wParam);
+					break;
+				case SB_THUMBTRACK:
+					si2.nPos = HIWORD(wParam);
+					break;
+			}
+			SetScrollInfo (hInf, SB_VERT, &si2, TRUE);
+			GetScrollInfo (hInf, SB_VERT, &si2);
+			ScrollWindow (hInf, 0, posVertIniz-si2.nPos, NULL, NULL);
+			break;
+		}
+		case WM_MOUSEWHEEL:
+			if( si2.nMax >= si2.nPage ) {
+				int posVertIniz = si2.nPos;
+				si2.nPos -= GET_WHEEL_DELTA_WPARAM(wParam) / 3;
+				SetScrollInfo (hInf, SB_VERT, &si2, TRUE);
+				GetScrollInfo (hInf, SB_VERT, &si2);
+				ScrollWindow (hInf, 0, posVertIniz-si2.nPos, NULL, NULL);
+			}
+			break;
+		case WM_CLOSE:
+			DestroyWindow(hInf);
+			hInfo = 0;
+			break;
+		default:
+			return DefWindowProc(hInf, message, wParam, lParam);
+	}
+	return 0;
+}
+
+LRESULT CALLBACK proceduraInformino(HWND hInformin, UINT message, WPARAM wParam, LPARAM lParam) {
+	switch (message) {
+		case WM_CTLCOLORSTATIC:	// sfondo bianco del testo solo lettura
+			if( (HWND)lParam == GetDlgItem(hInformin,ID_INFO_GLIFO) ) {
+				return (LRESULT)( (HBRUSH)GetStockObject(WHITE_BRUSH) );
+			}
+		default:
+			return DefWindowProc(hInformin, message, wParam, lParam);
+	}
+	return 0;
+}
+
+// procedura Testi in finestra Informazioni
+LRESULT CALLBACK proceduraInfoTesto(HWND hTest, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+	switch (message) {
+		case WM_MOUSEWHEEL:
+			SendMessage(hInfo, WM_MOUSEWHEEL, wParam, lParam);
+			break;
+		default:
+			return DefSubclassProc(hTest, message, wParam, lParam);
+	}
+	return 0;
+}
+
 // avvia la finestra di dialogo Windows per aprire il file
 void finestraDialogoApri() {
 	if (!preservaModifiche())
 		return;
-	OPENFILENAME ofn = {0};
-	ofn.lStructSize = sizeof(OPENFILENAME);
+	OPENFILENAMEW ofn = {0};
+	ofn.lStructSize = sizeof(OPENFILENAMEW);
 	ofn.hwndOwner = hWindow;
-	ofn.lpstrFilter = "Text Files (txt)\0*.txt\0All Files (*)\0*.*\0";
+	ofn.lpstrFilter = L"Text Files (txt)\0*.txt\0All Files (*)\0*.*\0";
 	ofn.lpstrFile = fileDaAprire;
 	ofn.nMaxFile = MAX_PATH;
 	ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
-	ofn.lpstrDefExt = "txt";
-	if( GetOpenFileName(&ofn) )
+	ofn.lpstrDefExt = L"txt";
+	if( GetOpenFileNameW(&ofn) )
 		apriFile();
 }
 
@@ -502,7 +611,7 @@ _Bool salvaFile() {
 	int num = GetWindowTextLength(hEditore);
 	wchar_t buffer[num+1];
 	GetWindowTextW(hEditore, buffer, num+1);
-	HANDLE hFile = CreateFile(nomeFile, GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	HANDLE hFile = CreateFileW(nomeFile, GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	char bufferUTF8[ WideCharToMultiByte( CP_UTF8, 0, buffer, -1, 0, 0, NULL, NULL ) ];
 	WideCharToMultiByte( CP_UTF8, 0, buffer, -1, bufferUTF8, sizeof(bufferUTF8), NULL, NULL );
 	DWORD byteScritti;
@@ -513,24 +622,24 @@ _Bool salvaFile() {
 	}
 	CloseHandle(hFile);
 	fileModificato = 0;
-	char* nome = strrchr(nomeFile, '\\') + 1; 
-	SetWindowText(hWindow, nome);
+	wchar_t *nome = wcsrchr(nomeFile, '\\') + 1; 
+	SetWindowTextW(hWindow, nome);
 	EnableMenuItem(GetMenu(hWindow), MENU_FILE_SALVA, MF_GRAYED);
 	return 1;
 }
 
 // avvia la finestra di dialogo Windows per salvare il file
 int finestraDialogoSalva() {
-	OPENFILENAME ofn = {0};
-	ofn.lStructSize = sizeof(OPENFILENAME);
+	OPENFILENAMEW ofn = {0};
+	ofn.lStructSize = sizeof(OPENFILENAMEW);
 	ofn.hwndOwner = hWindow;
-	ofn.lpstrFilter = "Text Files (txt)\0*.txt\0All Files (*)\0*.*\0";
+	ofn.lpstrFilter = L"Text Files (txt)\0*.txt\0All Files (*)\0*.*\0";
 	ofn.lpstrFile = nomeFile;
 	ofn.nMaxFile = MAX_PATH;
 	ofn.Flags = OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;	//OFN_HIDEREADONLY
-	ofn.lpstrDefExt = "txt";
+	ofn.lpstrDefExt = L"txt";
 	int risposta;
-	if( (risposta=GetSaveFileName(&ofn)) ) {
+	if( (risposta=GetSaveFileNameW(&ofn)) ) {
 		if( (risposta=salvaFile()) ) {
 			scriviNomeFile();
 			aggiornaFileRecenti();
@@ -573,7 +682,7 @@ _Bool preservaModifiche() {
 			MB_ICONWARNING | MB_YESNOCANCEL | MB_DEFBUTTON1 );
 		switch (risposta) {
 			case IDYES:
-				if (strcmp(nomeFile, "untitled") == 0)
+				if (wcscmp(nomeFile, L"untitled") == 0)
 					continua = finestraDialogoSalva();
 				else
 					continua = salvaFile();
@@ -624,7 +733,18 @@ void mostraNascondiBarraTitolo() {
 	CheckMenuItem( GetMenu(hWindow), MENU_MOSTRA_TITOLO, conBarraTitolo );
 }
 
-// svuota la finestra dei bottoni
+void ordineLetturaDestraSinistra() {
+	if (das) {
+		SetWindowLong(hTastiera, GWL_EXSTYLE, WS_EX_LEFTSCROLLBAR);	// barra a sinistra per lettura da destra a sinistra
+		SetWindowLong(hEditore, GWL_EXSTYLE, WS_EX_RIGHT|WS_EX_LEFTSCROLLBAR|WS_EX_RTLREADING);	// set completo per lettura da destra a sinistra
+	} else {	
+		SetWindowLong(hTastiera, GWL_EXSTYLE, 0);
+		SetWindowLong(hEditore, GWL_EXSTYLE, 0);
+	}
+	CheckMenuItem (GetMenu(hWindow), MENU_LETTURA_DAS, das);
+}
+
+// chiude baracca e burattini
 _Bool chiudiFile() {
 	if (!preservaModifiche())
 		return 0;
@@ -665,10 +785,10 @@ void chiudiProgramma() {
 		sprintf(dimensioni,"left=%d%ctop=%d%cright=%d%cbottom=%d", (int)wndRect.left,0, (int)wndRect.top,0, (int)wndRect.right,0, (int)wndRect.bottom );
 		WritePrivateProfileSection("size", dimensioni, config_ini);
 	}
-	if (strcmp(nomeFile, "untitled") == 0)
+	if( wcscmp(nomeFile, L"untitled") == 0 )
 		nomeFile[0] = 0;
 	// scrive in confing.ini nome del file aperto 
-	if( !WritePrivateProfileString( "file", "openfile", nomeFile, config_ini) ) {
+	if( !WritePrivateProfileStringW( L"file", L"openfile", nomeFile, Lconfig_ini) ) {
 		char msg[MAX_PATH+35];
 		sprintf (msg, "I can't save the program settings in %s", config_ini);
 		MessageBox (hWindow, msg,"Failed to save", MB_ICONERROR);
@@ -712,10 +832,26 @@ BOOL CALLBACK proceduraDialogoPreferenze(HWND hWnd, UINT message, WPARAM wParam,
 			char separatori[15];
 			GetPrivateProfileString("options", "cutter3", "", separatori, sizeof(separatori), config_ini);
 			SetWindowText( GetDlgItem(hWnd,EDITTEXT_ALTRI), separatori );
+			PostMessage ( GetDlgItem(hWnd,CHECKBOX_MOSAICO), BM_SETCHECK,
+						  GetPrivateProfileInt("options","nocutter",0,config_ini), 0);
+			PostMessage(hWnd,WM_COMMAND,CHECKBOX_MOSAICO,0);
 			break;
 		}
 		case WM_COMMAND:
 			switch(LOWORD(wParam)) {
+				case CHECKBOX_MOSAICO:	// disabilita gli altri comandi
+					if ( SendDlgItemMessage(hWnd,CHECKBOX_MOSAICO,BM_GETCHECK,0,0) == BST_CHECKED) {
+						okMosaico = 1;
+						EnableWindow( GetDlgItem(hWnd,CHECKBOX_SPAZI), FALSE);
+						EnableWindow( GetDlgItem(hWnd,CHECKBOX_TAB), FALSE);
+						EnableWindow( GetDlgItem(hWnd,EDITTEXT_ALTRI), FALSE);
+					} else {
+						okMosaico = 0;
+						EnableWindow( GetDlgItem(hWnd,CHECKBOX_SPAZI), TRUE);
+						EnableWindow( GetDlgItem(hWnd,CHECKBOX_TAB), TRUE);
+						EnableWindow( GetDlgItem(hWnd,EDITTEXT_ALTRI), TRUE);
+					}
+					break;
 				case IDOK: {	// chiude la finestra di dialogo e salva le preferenze
 					char separatore[15];
 					sprintf( separatore, "%d", SendDlgItemMessage(hWnd,CHECKBOX_SPAZI,BM_GETCHECK,0,0) );
@@ -724,6 +860,8 @@ BOOL CALLBACK proceduraDialogoPreferenze(HWND hWnd, UINT message, WPARAM wParam,
 					WritePrivateProfileString( "options", "cutter2", separatore, config_ini);
 					GetWindowText( GetDlgItem(hWnd,EDITTEXT_ALTRI), separatore, 15);
 					WritePrivateProfileString( "options", "cutter3", separatore, config_ini);
+					sprintf( separatore, "%d", SendDlgItemMessage(hWnd,CHECKBOX_MOSAICO,BM_GETCHECK,0,0) );
+					WritePrivateProfileString( "options", "nocutter", separatore, config_ini);
 					EndDialog(hWnd, IDOK);
 					disponiBottoni();
 					break;
