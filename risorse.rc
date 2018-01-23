@@ -1,7 +1,6 @@
 // Risorse varie per l'applicazione Windows® Uosk
 
 #include "macro.h"
-#include <windows.h>
 
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "uosk.manifest"
 
@@ -31,7 +30,7 @@ BEGIN
         MENUITEM "&Copy to clipboard", MENU_COPIA_APPUNTI
 		MENUITEM "&Title bar", MENU_MOSTRA_TITOLO, CHECKED
 		MENUITEM "&Status bar", MENU_MOSTRA_STATUS
-		MENUITEM "Snippet &Info", MENU_INFO_SNIPPET
+		MENUITEM "Snippet &Info\tCtrl+I", MENU_INFO_SNIPPET
 		MENUITEM "Right to left Reading order", MENU_LETTURA_DAS
 		MENUITEM SEPARATOR
 		MENUITEM "Keyboard Font...", MENU_FONT_TASTIERA
@@ -43,7 +42,6 @@ BEGIN
 		MENUITEM "&Report a Problem...", MENU_PROBLEMA
 		MENUITEM "&About...", MENU_INFORMAZIONI
 	END
-	MENUITEM "[ ]", MENU_BOTTONE_DESTRA, HELP
 END
 
 // Acceleratori
@@ -55,6 +53,7 @@ BEGIN
 	"S", MENU_FILE_SALVA, CONTROL, VIRTKEY
 	"W", MENU_FILE_CHIUDI, CONTROL, VIRTKEY
 	"Q", MENU_EXIT, CONTROL, VIRTKEY
+	"I", MENU_INFO_SNIPPET, CONTROL, VIRTKEY
 END
 
 messaggioIstruttivo DIALOGEX 0, 0, 220, 125
@@ -77,8 +76,7 @@ BEGIN
 	CHECKBOX  	"Space",CHECKBOX_SPAZI,35,40,70,15,BS_AUTOCHECKBOX
 	CHECKBOX  	"Tabulation",CHECKBOX_TAB,35,55,70,15,BS_AUTOCHECKBOX
 	RTEXT   	"Other",ID_STATICO,20,73,40,15
-	EDITTEXT    EDITTEXT_ALTRI,65,71,40,12
-	LTEXT   	"(ASCII only)",ID_STATICO,110,73,50,15
+	EDITTEXT    EDITTEXT_ALTRI,65,71,60,12
 	CHECKBOX	"None (Each character becomes a button)",CHECKBOX_MOSAICO,25,95,140,15,BS_AUTOCHECKBOX
     PUSHBUTTON	"&OK",IDOK,35,125,50,15
     PUSHBUTTON	"&Cancel",IDCANCEL,95,125,50,15
@@ -91,23 +89,18 @@ CAPTION "About"
 BEGIN
     GROUPBOX        "Info about Uosk",ID_STATICO,10,10,160,95
     CTEXT           "Unicode On-Screen Keyboard\nInsert text snippets into any Windows program\n\n"
-					"Version 0.4.0\nNovember 2017\n\nMichele Salvador",ID_STATICO,15,25,150,60
+					"Version 0.5.0\nJanuary 2018\n\nMichele Salvador",ID_STATICO,15,25,150,60
 	CONTROL         "<a href=""https://sourceforge.net/projects/uosk/"">Uosk on SourceForge</a>",ID_LINK,"SysLink",0,62,85,90,15
 	DEFPUSHBUTTON   "&Close",IDCANCEL,65,112,50,15
 END
 
 // Info versione
-VS_VERSION_INFO    VERSIONINFO
-FILEVERSION        0,4,0,0
-PRODUCTVERSION     0,4,0,0
-FILEFLAGSMASK      VS_FFI_FILEFLAGSMASK
-#ifdef RELEASE
-  FILEFLAGS        0
-#else
-  FILEFLAGS        VS_FF_DEBUG | VS_FF_PRERELEASE
-#endif
-FILEOS             VOS_NT_WINDOWS32
-FILETYPE           VFT_APP
+VS_VERSION_INFO	VERSIONINFO
+FILEVERSION		0,5,0,0
+FILEFLAGSMASK	VS_FFI_FILEFLAGSMASK
+FILEFLAGS		0
+FILEOS			VOS_NT_WINDOWS32
+FILETYPE		VFT_APP
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
@@ -115,16 +108,15 @@ BEGIN
     BEGIN
 		VALUE "CompanyName", "Michele Salvador"
 		VALUE "FileDescription", "Unicode On-Screen Keyboard"
-		VALUE "FileVersion", "0.4.0"
 		VALUE "InternalName", "uosk"
 		VALUE "LegalCopyright", "Michele Salvador"
 		VALUE "OriginalFilename", "uosk.exe"
 		VALUE "ProductName", "Uosk"
-		VALUE "ProductVersion", "0.4.0"
+		VALUE "ProductVersion", "0.5.0"
     END
   END
   BLOCK "VarFileInfo"
   BEGIN
-    VALUE "Translation", 0x0409,1200
+    VALUE "Translation", 0x0409, 1200
   END
 END

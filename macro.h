@@ -15,52 +15,62 @@
 #include <shlwapi.h>
 #include <psapi.h>
 #include <tlhelp32.h>
+#include <usp10.h>
 //#include ".\..\winapi\utilita.c"
-//#include "editore.h"
-//#include "altre.h"
 
 // Variabili globali
 
 // manici
 HWND hWindow;
+HWND hFrontalino;
 HWND hTastiera;
 HWND hEditore;
 HWND hInfo;
 HWND ultimoProgrammaAttivo;
 HWND hSnippetFocus;
 
-char config_ini[MAX_PATH];
-wchar_t Lconfig_ini[MAX_PATH];
+wchar_t appData[MAX_PATH];
+wchar_t config_ini[MAX_PATH];
 _Bool apriDaConfig_ini;
 wchar_t *cartellaProgramma;
 wchar_t fileDaAprire[MAX_PATH];
 wchar_t nomeFile[MAX_PATH];
-int okEdita;	// = MF_UNCHECKED
-_Bool fileModificato;	// = 0
-
+int okEdita;
+_Bool fileModificato;
+// esempi di tastiere in Frontalino
+struct {
+	wchar_t nome[MAX_PATH-10];
+	wchar_t testo[50];
+	wchar_t indirizzo[MAX_PATH];
+} *esemplari;
 // dimensioni della finestra
 struct {
 	int pulsaLarga;
 	int statusAlta;
 	int statusSecondoLargo;
 	int clienteLargo;
-} size;	// = { 0 }
-
-// struttura per gestire la barra di scorrimento e altezza finestra
+} size;
 SCROLLINFO si;
 SCROLLINFO si2;
-_Bool veroResize;	// = 0
-_Bool massimizzata;	// = 0
-
+_Bool veroResize;
+_Bool massimizzata;
+// struttura per ospitare info su uno snippet
+struct unoSnippo {
+	HWND manico;
+	int caratteri;
+	int larghezza;
+	int minimo;
+	int massimo;
+} *snippi;
 _Bool okMosaico;
 unsigned int okCopiaAppunti;
 unsigned int conBarraTitolo;
 HWND hStatusBar;
 unsigned int okMostraStatus;
 unsigned int das;
-LOGFONT lf;	// = {0}
+LOGFONTW lf;
 HWND hToolTip;
-TOOLINFO ti;	// = {0}
+TOOLINFO ti;
 
 // MACRO
 #define ID_STATICO       	-1
@@ -70,6 +80,9 @@ TOOLINFO ti;	// = {0}
 #define ID_BOTTONE_SNIPPET	4
 #define ID_INFORMINO		5
 #define ID_INFO_GLIFO		6
+
+#define ID_FRONTE_NUOVO		10
+#define ID_FRONTE_ESEMPI	11
 
 #define ID_MENUPRINCIPALE 	20
 #define MENU_FILE_NUOVO		21
@@ -91,9 +104,9 @@ TOOLINFO ti;	// = {0}
 
 #define MENU_PROBLEMA 		40
 #define MENU_INFORMAZIONI	41
-#define MENU_RIDUCI			42
-#define MENU_INGRANDISCI	43
-#define MENU_BOTTONE_DESTRA	44
+#define MENU_BOTTONE_CHIUDI	42
+#define MENU_BOTTONE_EDITA	43
+#define MENU_BOTTONE_RIDUCI	44
 
 #define DIALOGO_PREFERENZE	50
 #define CHECKBOX_SPAZI		60
@@ -108,31 +121,36 @@ TOOLINFO ti;	// = {0}
 
 
 // dichiarazione funzioni
-void bottoneDestra();
-void caricaFont(char*);
+void bottoniDestra();
+void caricaFont(wchar_t*);
+int contaGlifi(wchar_t*);
 void copiaNegliAppunti(wchar_t*);
+void creaFrontalino();
 wchar_t *elencaSeparatori();
-wchar_t *escapaAnd(wchar_t*);
+//wchar_t *escapaAnd(wchar_t*);
 int lunghezzaBOM(wchar_t*);
 _Bool preservaModifiche();
 void scriviNomeFile();
-void settaFontSistema(HWND);
+HFONT settaFontSistema(HWND);
 void svuotaTastiera();
-wchar_t *tesseraMosaico(wchar_t*);
+
 #define conta(array) sizeof array / sizeof(array[0])
 
 void apriFile();
+wchar_t* checkGlyphExist( wchar_t*, wchar_t* );
 _Bool chiudiFile();
 void chiudiProgramma();
 void contaCaratteri();
-void creaBottoni();
-int disescapaAnd( wchar_t* snip );
+int creaBottoni();
+//int disescapaAnd( wchar_t* snip );
 void disponiBottoni();
 void finestraDialogoApri();
 int finestraDialogoSalva();
+int CALLBACK metaFileEnumProc( HDC, HANDLETABLE*, const ENHMETARECORD*, int, LPARAM );
 void mostraNascondiBarraTitolo();
 void ordineLetturaDestraSinistra();
 LRESULT CALLBACK ProceduraEditore(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
+LRESULT CALLBACK proceduraFrontalino(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK proceduraTastiera(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK proceduraInfoSnippet(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK proceduraInformino(HWND, UINT, WPARAM, LPARAM);
@@ -141,6 +159,8 @@ BOOL CALLBACK proceduraDialogoInformazioni(HWND, UINT, WPARAM, LPARAM);
 BOOL CALLBACK proceduraDialogoPreferenze(HWND, UINT, WPARAM, LPARAM);
 _Bool salvaFile();
 void scriviNomeProgramma();
+
+FILE * _wfopen (const wchar_t *, const wchar_t *);
 
 int errore();
 

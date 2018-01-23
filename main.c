@@ -20,8 +20,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			GetWindowRect( hStatusBar, &rcStatus );
 			size.statusAlta = rcStatus.bottom - rcStatus.top;
 			// mostra la status bar secondo quanto memorizzato in congin.ini
-			if( (okMostraStatus = GetPrivateProfileInt("options","statusbar",0,config_ini)) )
-				ShowWindow(hStatusBar,SW_SHOW);
+			if( (okMostraStatus = GetPrivateProfileIntW(L"options",L"statusbar",0,config_ini)) )
+				ShowWindow( hStatusBar, SW_SHOW );
+
+			creaFrontalino();
 
 			// Classe finestra Tastiera che ospita i bottoni
 			WNDCLASS clsPls = {0};
@@ -29,27 +31,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			clsPls.hbrBackground = (HBRUSH)(COLOR_3DFACE+1);
 			clsPls.lpszClassName = "ClasseTastiera";
 			clsPls.hCursor = LoadCursor(NULL, IDC_ARROW);
-			// registrazione
-			if(!RegisterClass(&clsPls)) {
-				MessageBox(hWnd,"Registration of Keyboard class has failed","Error",MB_ICONERROR);
-				break;
-			}
+			RegisterClass(&clsPls);
 			// creazione finestra Tastiera
-			hTastiera = CreateWindow ( clsPls.lpszClassName, "", WS_CHILD, 0, 0, 100, 100, hWnd, 0, GetModuleHandle(0), 0 );
-			if (hTastiera==NULL)
-				MessageBox(hWnd,"Creation of Keyboard window has failed","Error",MB_ICONERROR);
-			
-			{	// creazione dell'Editore di testo
-				hEditore = CreateWindowW( L"Edit", NULL, WS_CHILD|WS_VSCROLL|ES_MULTILINE|ES_AUTOVSCROLL, 
-				                          0, 0, 200, 100, hWnd, 0, GetModuleHandle(0), 0 );
-				if (hEditore)
-					SetWindowSubclass(hEditore, ProceduraEditore, 0, 0);
-				caricaFont("editor");
-				HFONT hFontEditore = CreateFontIndirect(&lf);
-				SendMessage(hEditore, WM_SETFONT, (WPARAM)hFontEditore, 0);
-			}
+			hTastiera = CreateWindow( clsPls.lpszClassName, "", WS_CHILD, 0, 0, 100, 100, hWnd, 0, GetModuleHandle(0), 0 );
 
-			{ // ToolTip della finestra principale
+			// creazione dell'Editore di testo
+			hEditore = CreateWindowW( L"Edit", NULL, WS_CHILD|WS_VSCROLL|ES_MULTILINE|ES_AUTOVSCROLL, 
+									  0, 0, 200, 100, hWnd, 0, GetModuleHandle(0), 0 );
+			if (hEditore)
+				SetWindowSubclass(hEditore, ProceduraEditore, 0, 0);
+			caricaFont(L"editor");
+			HFONT hFontEditore = CreateFontIndirectW(&lf);
+			SendMessage(hEditore, WM_SETFONT, (WPARAM)hFontEditore, 0);
+
+			// ToolTip della finestra principale
 			hToolTip = CreateWindow( TOOLTIPS_CLASS, 0, WS_POPUP | TTS_ALWAYSTIP, 0, 0, 0, 0, hWnd, 0, 0, 0);
 			ti.cbSize = sizeof(TOOLINFO);
 			ti.uFlags = TTF_SUBCLASS;
@@ -58,22 +53,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			ti.lpszText = "Double click to open a file";
 			SendMessage( hToolTip, TTM_ADDTOOL, 0, (LPARAM)&ti );
 
-			// ToolTip del bottone a destra del menu
-			ti.uId = (UINT)MENU_BOTTONE_DESTRA;
+			// ToolTip dei bottoni a destra del menu
+			ti.uId = MENU_BOTTONE_CHIUDI;
 			SendMessage( hToolTip, TTM_ADDTOOL, 0, (LPARAM)&ti );
-			}
+			ti.uId = MENU_BOTTONE_EDITA;
+			SendMessage( hToolTip, TTM_ADDTOOL, 0, (LPARAM)&ti );
+			ti.uId = MENU_BOTTONE_RIDUCI;
+			SendMessage( hToolTip, TTM_ADDTOOL, 0, (LPARAM)&ti );
 
 			// modifica il menu
-			okCopiaAppunti = GetPrivateProfileInt("options","clipboard",0,config_ini);
+			okCopiaAppunti = GetPrivateProfileIntW( L"options", L"clipboard", 0, config_ini );
 			CheckMenuItem( GetMenu(hWnd), MENU_COPIA_APPUNTI, okCopiaAppunti );
 			CheckMenuItem( GetMenu(hWnd), MENU_MOSTRA_STATUS, okMostraStatus );
-			okMosaico = GetPrivateProfileInt("options","nocutter",0,config_ini);
+			okMosaico = GetPrivateProfileIntW( L"options", L"nocutter", 0, config_ini );
 			wchar_t nomePath[8];
 			wchar_t fileRecente[MAX_PATH];
 			HMENU hSubMenu = GetSubMenu( GetSubMenu(GetMenu(hWnd),0), 2 );
 			for( int i=0; i<5; i++ ) {
 				snwprintf( nomePath, conta(nomePath), L"recent%d", i );
-				GetPrivateProfileStringW( L"file", nomePath, L"", fileRecente, MAX_PATH, Lconfig_ini);
+				GetPrivateProfileStringW( L"file", nomePath, L"", fileRecente, MAX_PATH, config_ini);
 				if( fileRecente[0] )
 					InsertMenuW( hSubMenu, -1, MF_BYPOSITION|MF_STRING, MENU_FILE_RECENTI+i, fileRecente);
 			}
@@ -90,7 +88,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 				// ridimensiona barra di stato
 				int sezioni[3];
-				sezioni[0] = 35;
+				sezioni[0] = 45;
 				sezioni[1] = rect.right/3*2;
 				size.statusSecondoLargo = sezioni[1] - sezioni[0];
 				sezioni[2] = -1;
@@ -109,30 +107,39 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					si.nPos = 0;
 				SetScrollInfo( hTastiera, SB_VERT, &si, TRUE );
 				ScrollWindow( hTastiera, 0, posVertIniz-si.nPos, NULL, NULL );
+
+				// ridimensiona le finestre
+				int yFronte = si.nPage>170 ? (si.nPage-170)/2 : 0;
+				MoveWindow( hFrontalino, (rect.right-300)/2, yFronte, 300, 170, 1 );
 				MoveWindow( hTastiera, 0, 0, rect.right, si.nPage, 1 );
 				MoveWindow( hEditore, 0, 0, rect.right, si.nPage, 1 );
 
 				// aggiorna le coordiante dei tooltip
-				ti.uId = (UINT)ID_FINESTRA_CLIENTE;
+				ti.uId = ID_FINESTRA_CLIENTE;
 				GetClientRect (hWnd, &ti.rect);
 				ti.rect.bottom -= size.statusAlta;
 				SendMessage( hToolTip, TTM_NEWTOOLRECT, 0, (LPARAM)&ti );
-				ti.uId = (UINT)MENU_BOTTONE_DESTRA;
-				GetMenuItemRect( hWnd, GetMenu(hWnd), 3, &ti.rect );
-				MapWindowPoints( NULL, hWnd, (POINT*)&ti.rect, 2 );
-				SendMessage( hToolTip, TTM_NEWTOOLRECT, 0, (LPARAM)&ti );
+				for( int i=0; i<3; i++ ) {
+					ti.uId = MENU_BOTTONE_CHIUDI + i;
+					int pos = 0;
+					while( GetMenuItemID(GetMenu(hWindow),pos)!=MENU_BOTTONE_CHIUDI+i && pos<6 )
+						pos++;
+					GetMenuItemRect( hWnd, GetMenu(hWnd), pos, &ti.rect );
+					MapWindowPoints( NULL, hWnd, (POINT*)&ti.rect, 2 );
+					SendMessage( hToolTip, TTM_NEWTOOLRECT, 0, (LPARAM)&ti );
+				}
 			}
 			veroResize = 1;
 			if (wParam==SIZE_MAXIMIZED)	{
 				disponiBottoni();
 				massimizzata = 1;
-				bottoneDestra();
+				bottoniDestra();
 			}
 			if ( wParam==SIZE_RESTORED && massimizzata ) {
 				disponiBottoni();
 				massimizzata = 0;
 				veroResize = 0;
-				bottoneDestra();
+				bottoniDestra();
 			}
 			break;
 		case WM_GETICON:	// solo per azzerare 'veroResize' dopo il primo WM_SIZE
@@ -187,14 +194,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 						break;
 					wcscpy(nomeFile,L"untitled");
 					okEdita = 1;
-					ShowWindow(hEditore,SW_SHOW);
+					ShowWindow( hFrontalino, SW_HIDE );
+					ShowWindow( hEditore,SW_SHOW );
 					SetWindowText(hEditore, "");
 					SetFocus(hEditore);
 					EnableMenuItem(GetMenu(hWnd), MENU_FILE_EDITA, MF_ENABLED);
 					CheckMenuItem(GetMenu(hWnd), MENU_FILE_EDITA, MF_CHECKED );
 					EnableMenuItem(GetMenu(hWnd), MENU_FILE_SALVACOME, MF_ENABLED);
 					EnableMenuItem(GetMenu(hWnd), MENU_FILE_CHIUDI, MF_ENABLED);
-					bottoneDestra();
+					bottoniDestra();
 					SetWindowPos(hWnd, HWND_NOTOPMOST, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE);
 					contaCaratteri();
 					SendMessage(hStatusBar, SB_SETTEXTW, 1, (LPARAM)nomeFile);
@@ -220,16 +228,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 						ShowWindow(hEditore,SW_SHOW);
 						okEdita = MF_CHECKED;
 						contaCaratteri();
-						bottoneDestra();
 						SetWindowPos( hWnd, HWND_NOTOPMOST, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE );
 						scriviNomeFile();
 					} else {
 						ShowWindow(hEditore,SW_HIDE);
 						disponiBottoni();
-						bottoneDestra();
 						SetWindowPos( hWnd, HWND_TOPMOST, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE );
 					}
-					DrawMenuBar(hWnd);
+					bottoniDestra();
 					CheckMenuItem( GetMenu(hWnd), MENU_FILE_EDITA, okEdita );
 					break;
 				case MENU_FILE_SALVA:
@@ -252,17 +258,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					okCopiaAppunti = okCopiaAppunti ? MF_UNCHECKED : MF_CHECKED;
 					//setta menu checked o no
 					CheckMenuItem( GetMenu(hWnd), MENU_COPIA_APPUNTI, okCopiaAppunti );
-					char str[2];
-					sprintf(str, "%d", okCopiaAppunti);
-					WritePrivateProfileString( "options", "clipboard", str, config_ini);
+					wchar_t str[2];
+					snwprintf( str, conta(str), L"%d", okCopiaAppunti );
+					WritePrivateProfileStringW( L"options", L"clipboard", str, config_ini );
 					break;
 				}
 				case MENU_MOSTRA_TITOLO:
 					conBarraTitolo = conBarraTitolo ? MF_UNCHECKED : MF_CHECKED;
 					mostraNascondiBarraTitolo();
-					char str[2];
-					sprintf(str, "%d", conBarraTitolo);
-					WritePrivateProfileString( "options", "titlebar", str, config_ini);
+					wchar_t str[2];
+					snwprintf( str, conta(str), L"%d", conBarraTitolo );
+					WritePrivateProfileStringW( L"options", L"titlebar", str, config_ini );
 					break;
 				case MENU_MOSTRA_STATUS: {
 					if (okMostraStatus) {
@@ -274,9 +280,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					}
 					SendMessage(hWnd,WM_SIZE,0,0);
 					CheckMenuItem( GetMenu(hWnd), MENU_MOSTRA_STATUS, okMostraStatus );
-					char str[2];
-					sprintf(str, "%d", okMostraStatus);
-					WritePrivateProfileString( "options", "statusbar", str, config_ini);
+					wchar_t str[2];
+					snwprintf( str, conta(str), L"%d", okMostraStatus );
+					WritePrivateProfileStringW( L"options", L"statusbar", str, config_ini );
 					break;
 				}
 				case MENU_INFO_SNIPPET: {
@@ -293,8 +299,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 						hInfo = CreateWindowEx (WS_EX_TOOLWINDOW|WS_EX_TOPMOST, clsInfo.lpszClassName, "Snippet Info",	
 							WS_OVERLAPPED|WS_SYSMENU|WS_VSCROLL|WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, 350, 300, hWnd, NULL, GetModuleHandle(0), NULL);
 					}
-					int lungo;
-					wchar_t *snippet = (wchar_t*)malloc(sizeof(wchar_t));
+					unsigned int lungo;
+					wchar_t *snippet = malloc( sizeof(wchar_t) );
 					if (okEdita) {	// ricava il testo selezionato nell'editore
 						DWORD inizioSelez, fineSelez;
 						SendMessage (hEditore, EM_GETSEL, (WPARAM)&inizioSelez, (LPARAM)&fineSelez);
@@ -304,15 +310,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 						snippet = realloc(snippet, (fineSelez-inizioSelez+1)*sizeof(wchar_t) );
 						tuttoTesto[fineSelez] = 0;
 						wcscpy(snippet, &tuttoTesto[inizioSelez]);
+						lungo = wcslen(snippet);
 					} else {	// ricava lo snippet dal bottone
 						if( !hSnippetFocus || hSnippetFocus==hTastiera )
 							hSnippetFocus = GetDlgItem(hTastiera,ID_BOTTONE_SNIPPET);
 						lungo = GetWindowTextLength(hSnippetFocus);
 						snippet = realloc(snippet, (lungo+1)*sizeof(wchar_t));
 						GetWindowTextW(hSnippetFocus, snippet, lungo+1);
-						disescapaAnd(snippet);
 					}
-					lungo = wcslen(snippet);
 					_Bool surrogato = 0;
 					si2.nMax = 10;
 					si2.nPos = 0;
@@ -320,9 +325,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					char numTesto[4];
 					wchar_t glifo[3];
 					// font degli informini
-					caricaFont("keyboard");	
+					caricaFont(L"keyboard");	
 					lf.lfHeight = -45;
-					HFONT hFontGlifo = CreateFontIndirect(&lf);
+					HFONT hFontGlifo = CreateFontIndirectW(&lf);
 					HDC hDc = GetDC(hInfo);
 					SelectObject(hDc, hFontGlifo);
 					wchar_t unicodePath[MAX_PATH];
@@ -359,7 +364,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 									if ( strcmp(unicode,esadec) == 0 ) {
 										unicode = strtok (NULL, ";");
 										break;
-									}
+									} else
+										unicode = "";
 								}
 							} else unicode = "";
 							fclose(file);
@@ -378,44 +384,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				case MENU_LETTURA_DAS: {
 					das = das ? MF_UNCHECKED : MF_CHECKED;
 					ordineLetturaDestraSinistra();
-					char str[2];
-					sprintf(str, "%d", das);
-					WritePrivateProfileString( "options", "rtlreading", str, config_ini);
+					wchar_t str[2];
+					snwprintf( str, conta(str), L"%d", das );
+					WritePrivateProfileStringW( L"options", L"rtlreading", str, config_ini );
 					disponiBottoni();
 					break;
 				}
 				case MENU_FONT_TASTIERA: {
-					caricaFont("keyboard");
-					CHOOSEFONT cf = {0};
-					cf.lStructSize = sizeof (cf);
+					caricaFont(L"keyboard");
+					CHOOSEFONTW cf = {0};
+					cf.lStructSize = sizeof(cf);
 					cf.hwndOwner = hWnd;
 					cf.lpLogFont = &lf;
-					cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT;
-					if(ChooseFont(&cf)==TRUE) {
-						char fontsettings[80] = {0};
-						sprintf(fontsettings,"height=%d%cweight=%d%citalic=%d%ccharset=%d%cface=%s", 
+					cf.Flags = CF_SCREENFONTS | CF_NOVERTFONTS | CF_INITTOLOGFONTSTRUCT;
+					if(ChooseFontW(&cf)==TRUE) {
+						wchar_t fontsettings[80] = {0};
+						snwprintf( fontsettings, conta(fontsettings), L"height=%d%cweight=%d%citalic=%d%ccharset=%d%cface=%s", 
 						        lf.lfHeight,0, lf.lfWeight,0, lf.lfItalic,0, lf.lfCharSet,0, lf.lfFaceName);
-						WritePrivateProfileSection("keyboard", fontsettings, config_ini);
+						WritePrivateProfileSectionW( L"keyboard", fontsettings, config_ini );
 						disponiBottoni();
 					}
 					break;
 				}
 				case MENU_FONT_EDITORE: {
-					caricaFont("editor");
-					CHOOSEFONT cf = {0};
+					caricaFont(L"editor");
+					CHOOSEFONTW cf = {0};
 					cf.lStructSize = sizeof (cf);
 					cf.hwndOwner = hWnd;
 					cf.lpLogFont = &lf;
-					cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT;
-					if(ChooseFont(&cf)==TRUE) {
-						HFONT hfont = CreateFontIndirect(&lf);
+					cf.Flags = CF_SCREENFONTS | CF_NOVERTFONTS | CF_INITTOLOGFONTSTRUCT;
+					if(ChooseFontW(&cf)==TRUE) {
+						HFONT hfont = CreateFontIndirectW(&lf);
 						SendMessage(hEditore, WM_SETFONT, (WPARAM)hfont, 0);
 						InvalidateRect (hWnd, NULL, TRUE);
 						UpdateWindow(hWnd);
-						char fontsettings[80] = {0};
-						sprintf(fontsettings,"height=%d%cweight=%d%citalic=%d%ccharset=%d%cface=%s", 
+						wchar_t fontsettings[80] = {0};
+						snwprintf( fontsettings, conta(fontsettings), L"height=%d%cweight=%d%citalic=%d%ccharset=%d%cface=%s", 
 						        lf.lfHeight,0, lf.lfWeight,0, lf.lfItalic,0, lf.lfCharSet,0, lf.lfFaceName);
-						WritePrivateProfileSection("editor", fontsettings, config_ini);
+						WritePrivateProfileSectionW( L"editor", fontsettings, config_ini );
 					}
 					break;
 				}
@@ -428,24 +434,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				case MENU_INFORMAZIONI: // finestra di dialogo Informazioni
 					DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(DIALOGO_RICONOSCIMENTI), hWnd, proceduraDialogoInformazioni);
 					break;
-				case MENU_RIDUCI:
-					ShowWindow(hWnd, SW_MINIMIZE);
-					break;
-				case MENU_INGRANDISCI:
-					if (massimizzata)
-						ShowWindow(hWnd, SW_RESTORE);
-					else
-						ShowWindow(hWnd, SW_MAXIMIZE);
-					break;
-				case MENU_BOTTONE_DESTRA:
-					if (!conBarraTitolo)
-						SendMessage(hWnd, WM_CLOSE, 0, 0);
-					else if (!nomeFile[0])
-						SendMessage(hWnd, WM_COMMAND, MENU_FILE_NUOVO, 0);
-					else if (okEdita || massimizzata)
-						SendMessage(hWnd, WM_COMMAND, MENU_FILE_EDITA, 0);
-					else {
-						// ridimensiona la finestra per coincidere col contenuto
+				case MENU_BOTTONE_RIDUCI:
+					if( conBarraTitolo ) {	// ridimensiona la finestra per coincidere col contenuto
 						RECT dimPrima;
 						GetWindowRect( hWnd, &dimPrima );
 						RECT dimDopo = { dimPrima.left, dimPrima.top, max(size.pulsaLarga,150), si.nMax+1 };
@@ -456,7 +446,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 							dimDopo.right+dimPrima.left-dimDopo.left, dimDopo.bottom+dimPrima.top-dimDopo.top, 1);
 						if (das) creaBottoni();
 						veroResize = 0;
-					}
+					} else
+						ShowWindow(hWnd, SW_MINIMIZE);
+					break;
+				case MENU_BOTTONE_EDITA:
+					if( conBarraTitolo )
+						SendMessage( hWnd, WM_COMMAND, MENU_FILE_EDITA, 0 );
+					else if( massimizzata )
+						ShowWindow( hWnd, SW_RESTORE );
+					else
+						ShowWindow( hWnd, SW_MAXIMIZE );
+					break;
+				case MENU_BOTTONE_CHIUDI:
+					if( conBarraTitolo ) {
+						if( nomeFile[0] )	
+							chiudiFile();
+						else
+							SendMessage( hWnd, WM_COMMAND, MENU_FILE_NUOVO, 0 );
+					} else
+						SendMessage( hWnd, WM_CLOSE, 0, 0 );
 			} break;
 		case WM_SETFOCUS:
 			scriviNomeProgramma();
@@ -476,24 +484,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow ) {
 
 	// se AppData\Uosk non esiste la crea
-	char appdata[MAX_PATH];
-	SHGetFolderPath( 0, CSIDL_APPDATA, NULL, 0, appdata );
-	PathAppend (appdata, "Uosk");
-	if (!PathIsDirectory(appdata)) {
-		char msg[MAX_PATH+30];
-		if (CreateDirectory(appdata ,NULL)) {
-			sprintf(msg,"I have created the folder %s", appdata);
-			MessageBox(NULL, msg, "New settings directory", MB_ICONINFORMATION);
+	SHGetFolderPathW( 0, CSIDL_APPDATA, NULL, 0, appData );
+	PathAppendW( appData, L"Uosk");
+	if ( !PathIsDirectoryW(appData) ) {	// se non esiste
+		wchar_t msg[MAX_PATH+30];
+		if( CreateDirectoryW(appData,NULL) ) {	// la crea
+			snwprintf( msg, conta(msg), L"I have created the settings directory %s", appData );
+			MessageBoxW( NULL, msg, L"Uosk", MB_ICONINFORMATION );
 		} else {
-			sprintf (msg, "I can't create the folder %s", appdata);
-			MessageBox (NULL, msg, "No settings directory", MB_ICONERROR);
+			snwprintf( msg, conta(msg), L"I can't create the settings directory %s", appData );
+			MessageBoxW( NULL, msg, L"Uosk", MB_ICONERROR );
 		}
 	}
 
 	// percorso assoluto del file config.ini in UserName\AppData\Roaming
-	SHGetFolderPath( 0, CSIDL_APPDATA, NULL, 0, config_ini );
-	PathAppend(config_ini, "Uosk\\config.ini");
-	MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, config_ini, -1, Lconfig_ini, MAX_PATH);
+	snwprintf( config_ini, conta(config_ini), L"%s\\config.ini", appData );
+	// se non esiste config.ini lo crea utf-16 little endian
+	if( GetFileAttributesW(config_ini) == INVALID_FILE_ATTRIBUTES ) {
+		FILE *hFile = _wfopen( config_ini, L"w" );
+		char bom[] = { 0xFF, 0xFE, 0 };
+		fprintf( hFile, bom );
+		fclose(hFile);
+	}
 
 	// struttura della finestra
 	WNDCLASSEXW wc = {0};
@@ -507,37 +519,31 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	wc.lpszClassName = L"Uosk";
 	wc.hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_ICONA));
 	wc.hIconSm = (HICON)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_ICONA), IMAGE_ICON, 16, 16, 0);
-
-	if (!RegisterClassExW(&wc)) {
-		MessageBoxW(NULL, L"Registration of Uosk class is failed", L"Error", MB_ICONERROR);
-		return 0;
-	}
+	RegisterClassExW(&wc);
 
 	// prende dimensioni da config.ini
-	int left = GetPrivateProfileInt("size", "left", 100, config_ini);
-	int top = GetPrivateProfileInt("size", "top", 100, config_ini);
-	int larga  = GetPrivateProfileInt("size", "right", 500, config_ini) - left;
-	int alta = GetPrivateProfileInt("size", "bottom", 400, config_ini) - top;
-	
+	int left = GetPrivateProfileIntW( L"size", L"left", 100, config_ini );
+	int top = GetPrivateProfileIntW( L"size", L"top", 100, config_ini );
+	int larga  = GetPrivateProfileIntW( L"size", L"right", 500, config_ini ) - left;
+	int alta = GetPrivateProfileIntW( L"size", L"bottom", 400, config_ini ) - top;
+
 	// creazione della finestra principale
 	HWND hWnd = CreateWindowExW ( WS_EX_ACCEPTFILES, wc.lpszClassName, L"Uosk", 
 		WS_OVERLAPPEDWINDOW|WS_VISIBLE, left, top, larga, alta, NULL, NULL, hInstance, NULL);
-	if (!hWnd)
-		MessageBox(NULL,"Creation of window has failed", "Error", MB_ICONERROR);
 
 	HACCEL hAccelleratori = LoadAccelerators(hInstance, "Acceleri");	// MAKEINTRESOURCE(ID_ACCELERATORI)
 
-	if( !(conBarraTitolo = GetPrivateProfileInt("options","titlebar",0,config_ini)) )
+	if( !(conBarraTitolo = GetPrivateProfileIntW(L"options",L"titlebar",0,config_ini)) )
 		mostraNascondiBarraTitolo();
-	bottoneDestra();
+	bottoniDestra();
 
 	// opzione lettura da destra a sinistra
-	das = GetPrivateProfileInt ("options", "rtlreading", 0, config_ini);
+	das = GetPrivateProfileIntW( L"options", L"rtlreading", 0, config_ini );
 	ordineLetturaDestraSinistra();
 
 	// apre il file iniziale
 	wchar_t fileDaConfig[MAX_PATH];
-	if( GetPrivateProfileStringW( L"file", L"openfile", L"", fileDaConfig, sizeof(fileDaConfig), Lconfig_ini) ) {
+	if( GetPrivateProfileStringW( L"file", L"openfile", L"", fileDaConfig, sizeof(fileDaConfig), config_ini) ) {
 		apriDaConfig_ini = 1;
 		GetFullPathNameW( fileDaConfig, MAX_PATH, fileDaAprire, NULL );
 	}

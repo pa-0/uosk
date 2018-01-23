@@ -26,8 +26,12 @@ LRESULT CALLBACK ProceduraEditore(HWND hEditor, UINT message, WPARAM wParam, LPA
 				break;
 			}
 		case WM_CHAR:
-			if ( wParam == VK_ESCAPE ) {
+			if ( wParam == VK_ESCAPE  || wParam == VK_CANCEL) {
 				DefSubclassProc(hEditor, message, wParam, lParam);
+				break;
+			}
+			if( wParam == 1 ) {	// selezione tutto il testo con Ctrl+A
+				SendMessage( hEditor, EM_SETSEL, 0, -1 ); 
 				break;
 			}
 		case WM_UNDO:
